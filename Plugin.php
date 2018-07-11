@@ -3,12 +3,12 @@
  * 评论邮件提醒插件
  *
  * @package CommentToMail
- * @author Byends Upd.
- * @version 2.0.1
- * @link http://www.byends.com
+ * @author 黎明余光
+ * @version 2.1.0
+ * @link https://blog.lim-light.com
  * @oriAuthor DEFE (http://defe.me)
  * 
- * 原作者是 DEFE (http://defe.me),请尊重版权
+ * 原作者是 DEFE (http://defe.me)，原维护者是 Byends (http://www.byends.com/)，请尊重版权
  *
  */
 class CommentToMail_Plugin implements Typecho_Plugin_Interface
@@ -24,6 +24,9 @@ class CommentToMail_Plugin implements Typecho_Plugin_Interface
     
     /** @var bool 请求适配器 */
     private static $_adapter    = false;
+
+    /** @var int 超时时间 */
+    private static $_timeout    = 1;
 
     /**
      * 激活插件方法,如果激活失败,直接抛出异常
@@ -81,28 +84,34 @@ class CommentToMail_Plugin implements Typecho_Plugin_Interface
         $form->addInput($mode);
 
         $host = new Typecho_Widget_Helper_Form_Element_Text('host', NULL, 'smtp.',
-                _t('SMTP地址'), _t('请填写 SMTP 服务器地址'));
-        $form->addInput($host->addRule('required', _t('必须填写一个SMTP服务器地址')));
+                _t('SMTP 地址'), _t('请填写 SMTP 服务器地址'));
+        $form->addInput($host->addRule('required', _t('必须填写一个 SMTP 服务器地址')));
 
         $port = new Typecho_Widget_Helper_Form_Element_Text('port', NULL, '25',
-                _t('SMTP端口'), _t('SMTP服务端口,一般为25。'));
+                _t('SMTP 端口'), _t('SMTP 服务端口,一般为25。'));
         $port->input->setAttribute('class', 'mini');
-        $form->addInput($port->addRule('required', _t('必须填写SMTP服务端口'))
+        $form->addInput($port->addRule('required', _t('必须填写 SMTP 服务端口'))
                 ->addRule('isInteger', _t('端口号必须是纯数字')));
 
         $user = new Typecho_Widget_Helper_Form_Element_Text('user', NULL, NULL,
-                _t('SMTP用户'),_t('SMTP服务验证用户名,一般为邮箱名如：youname@domain.com'));
-        $form->addInput($user->addRule('required', _t('SMTP服务验证用户名')));
+                _t('SMTP 用户'),_t('SMTP服务验证用户名,一般为邮箱名如：youname@domain.com'));
+        $form->addInput($user->addRule('required', _t('SMTP 服务验证用户名')));
 
         $pass = new Typecho_Widget_Helper_Form_Element_Password('pass', NULL, NULL,
-                _t('SMTP密码'));
-        $form->addInput($pass->addRule('required', _t('SMTP服务验证密码')));
+                _t('SMTP 密码'));
+        $form->addInput($pass->addRule('required', _t('SMTP 服务验证密码')));
 
         $validate = new Typecho_Widget_Helper_Form_Element_Checkbox('validate',
-                array('validate'=>'服务器需要验证',
-                    'ssl'=>'ssl加密'),
-                array('validate'),'SMTP验证');
+                array('validate'=>'服务器需要验证'),
+                array('validate'),'SMTP 验证');
         $form->addInput($validate);
+
+        $encryption = new Typecho_Widget_Helper_Form_Element_Radio('encryption',
+                array('none' => _t('不加密'),
+                      'ssl' => _t('SSL'),
+                      'tls' => _t('TLS')),
+               'none', _t('SMTP 加密方式'));
+        $form->addInput($encryption);
         
         $fromName = new Typecho_Widget_Helper_Form_Element_Text('fromName', NULL, NULL,
                 _t('发件人名称'),_t('发件人名称，留空则使用博客标题'));
@@ -113,7 +122,7 @@ class CommentToMail_Plugin implements Typecho_Plugin_Interface
         $form->addInput($mail->addRule('email', _t('请填写正确的邮件地址！')));
 
         $contactme = new Typecho_Widget_Helper_Form_Element_Text('contactme', NULL, NULL,
-                _t('模板中“联系我”的邮件地址'),_t('联系我用的邮件地址,如为空则使用文章作者个人设置中的邮件地址！'));
+                _t('模板中“联系我”的邮件地址'),_t('联系我用的邮件地址，如为空则使用文章作者个人设置中的邮件地址！'));
         $form->addInput($contactme->addRule('email', _t('请填写正确的邮件地址！')));
 
         $status = new Typecho_Widget_Helper_Form_Element_Checkbox('status',
@@ -210,7 +219,7 @@ class CommentToMail_Plugin implements Typecho_Plugin_Interface
     public static function asyncRequest($url)
     {
         self::isAvailable();
-        self::$_adapter == 'Socket' ? self::socket($url) : self::curl($url);
+        self::$_adapter == 'Curl' ? self::curl($url) : self::fgc($url);
     }
 
     /**
@@ -240,7 +249,7 @@ class CommentToMail_Plugin implements Typecho_Plugin_Interface
         }
 
         if ($fp === false) {
-            self::saveLog("SOCKET错误," . $errno . ':' . $errstr);
+            self::saveLog("Socket 错误," . $errno . ':' . $errstr);
             return false;
         }
 
@@ -263,16 +272,33 @@ class CommentToMail_Plugin implements Typecho_Plugin_Interface
      */
     public static function curl($url)
     {
-        $cmh = curl_multi_init();
-        $ch1 = curl_init();
-        curl_setopt($ch1, CURLOPT_URL, $url);
-        curl_multi_add_handle($cmh, $ch1);
-        curl_multi_exec($cmh, $active);
+        $curl = curl_init($url);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false); // 信任任何证书
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_TIMEOUT, self::$_timeout);
         
         self::saveLog("Curl 方式发送\r\n");
+        curl_exec($curl);
+        curl_close($curl);
+        self::saveLog("请求结束\r\n");
+    }
+
+    /**
+     * file_get_contents 请求
+     * @param $url
+     */
+    public static function fgc($url)
+    {
+        $opts = array(  
+          'http'=>array(  
+            'method' => "GET",
+            'timeout' => self::$_timeout
+          )
+        );
+        $cxContext = stream_context_create($opts);
         
-        curl_multi_remove_handle($cmh, $ch1);
-        curl_multi_close($cmh);
+        self::saveLog("file_get_contents 方式发送\r\n");
+        $sFile = file_get_contents($url, false, $cxContext);
         self::saveLog("请求结束\r\n");
     }
 
@@ -282,8 +308,8 @@ class CommentToMail_Plugin implements Typecho_Plugin_Interface
      */
     public static function isAvailable()
     {
-        function_exists('ini_get') && ini_get('allow_url_fopen') && (self::$_adapter = 'Socket');
-        false == self::$_adapter && function_exists('curl_version') && (self::$_adapter = 'Curl');
+        function_exists('curl_version') && (self::$_adapter = 'Curl');
+        false == self::$_adapter && function_exists('file_get_contents') && (self::$_adapter = 'fgc');
         
         return self::$_adapter;
     }

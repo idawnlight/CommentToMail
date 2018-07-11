@@ -6,6 +6,14 @@
  * @copyright  Copyright (c) 2014 Byends (http://www.byends.com)
  * @license    GNU General Public License 2.0
  */
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+require_once 'lib/PHPMailer.php';
+require_once 'lib/SMTP.php';
+require_once 'lib/Exception.php';
+
 class CommentToMail_Action extends Typecho_Widget implements Widget_Interface_Do
 {
     /** @var  数据操作对象 */
@@ -34,7 +42,15 @@ class CommentToMail_Action extends Typecho_Widget implements Widget_Interface_Do
      */
     public function process($fileName)
     {
-        ignore_user_abort(TRUE);
+        header("Connection: close");
+        ignore_user_abort(true);
+        $size = ob_get_length();
+        header("Content-Length: $size");
+        ob_end_flush();
+        flush();
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        }
         $this->init();
         //获取评论内容
         $file = $this->_dir . '/cache/' . $fileName;
@@ -208,7 +224,6 @@ class CommentToMail_Action extends Typecho_Widget implements Widget_Interface_Do
     public function sendMail()
     {
         /** 载入邮件组件 */
-        require_once $this->_dir . '/lib/class.phpmailer.php';
         $mailer = new PHPMailer();
         $mailer->CharSet = 'UTF-8';
         $mailer->Encoding = 'base64';
@@ -219,17 +234,19 @@ class CommentToMail_Action extends Typecho_Widget implements Widget_Interface_Do
             case 'mail':
                 break;
             case 'sendmail':
-                $mailer->IsSendmail();
+                $mailer->isSendmail();
                 break;
             case 'smtp':
-                $mailer->IsSMTP();
+                $mailer->isSMTP();
 
                 if (in_array('validate', $this->_cfg->validate)) {
                     $mailer->SMTPAuth = true;
                 }
 
-                if (in_array('ssl', $this->_cfg->validate)) {
+                if ($this->_cfg->encryption === 'ssl') {
                     $mailer->SMTPSecure = "ssl";
+                } else if ($this->_cfg->encryption === "tls") {
+                    $mailer->SMTPSecure = "tls";
                 }
 
                 $mailer->Host     = $this->_cfg->host;
@@ -240,12 +257,12 @@ class CommentToMail_Action extends Typecho_Widget implements Widget_Interface_Do
                 break;
         }
 
-        $mailer->SetFrom($this->_email->from, $this->_email->fromName);
-        $mailer->AddReplyTo($this->_email->to, $this->_email->toName);
+        $mailer->setFrom($this->_email->from, $this->_email->fromName);
+        $mailer->addReplyTo($this->_email->to, $this->_email->toName);
         $mailer->Subject = $this->_email->subject;
         $mailer->AltBody = $this->_email->altBody;
-        $mailer->MsgHTML($this->_email->msgHtml);
-        $mailer->AddAddress($this->_email->to, $this->_email->toName);
+        $mailer->msgHTML($this->_email->msgHtml);
+        $mailer->addAddress($this->_email->to, $this->_email->toName);
 
         if ($result = $mailer->Send()) {
             $this->mailLog();
@@ -254,8 +271,8 @@ class CommentToMail_Action extends Typecho_Widget implements Widget_Interface_Do
             $result = $mailer->ErrorInfo;
         }
         
-        $mailer->ClearAddresses();
-        $mailer->ClearReplyTos();
+        $mailer->clearAddresses();
+        $mailer->clearReplyTos();
 
         return $result;
     }
