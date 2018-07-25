@@ -275,7 +275,7 @@ class CommentToMail_Plugin implements Typecho_Plugin_Interface
         $curl = curl_init($url);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false); // 信任任何证书
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curl, CURLOPT_TIMEOUT, self::$_timeout);
+        //curl_setopt($curl, CURLOPT_TIMEOUT, self::$_timeout);
         
         self::saveLog("Curl 方式发送\r\n");
         curl_exec($curl);
@@ -292,7 +292,7 @@ class CommentToMail_Plugin implements Typecho_Plugin_Interface
         $opts = array(  
           'http'=>array(  
             'method' => "GET",
-            'timeout' => self::$_timeout
+            //'timeout' => self::$_timeout
           )
         );
         $cxContext = stream_context_create($opts);
