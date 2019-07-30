@@ -29,7 +29,7 @@ class CommentToMail_Console extends Typecho_Widget
         /** 管理员权限 */
         $this->widget('Widget_User')->pass('administrator');
         $this->_dir = dirname(__FILE__);
-        $files = glob($this->_dir . '/*.{html,HTML}', GLOB_BRACE);
+        $files = glob($this->_dir . '/*.html');
         $this->_currentFile = $this->request->get('file', 'owner.html');
 
         if (preg_match("/^([_0-9a-z-\.\ ])+$/i", $this->_currentFile)
