@@ -4,7 +4,7 @@
  *
  * @package CommentToMail
  * @author 黎明余光
- * @version 2.1.0
+ * @version 2.1.3
  * @link https://blog.lim-light.com
  * @oriAuthor DEFE (http://defe.me)
  * 
